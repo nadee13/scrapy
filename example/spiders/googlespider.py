@@ -9,6 +9,9 @@ from scrapy.utils.misc import arg_to_iter
 from example.items import GoogleSearchItem
 from example.items import JokeItem
 from scrapy.loader import ItemLoader
+
+import urllib.parse as urlparse
+from urllib.parse import parse_qs
 import json
 
 COUNTRIES = {
@@ -24,7 +27,7 @@ class GoogleSearchSpider(scrapy.Spider):
     queries = ('contact us', 'hotel')
     region = 'ie'
     download_delay = 5
-    base_url_fmt = 'http://www.google.{region}/search?hl=en&tbm=nws&as_q=&as_epq={query}&as_oq=&as_eq=&as_nlo=&as_nhi=&lr=&cr={country}&as_qdr=all&as_sitesearch=&as_occt=any&safe=images&tbs=&as_filetype=&as_rights='
+    base_url_fmt = 'http://www.google.{region}/search?hl=en&as_q=&as_epq={query}&as_oq=&as_eq=&as_nlo=&as_nhi=&lr=&cr={country}&as_qdr=all&as_sitesearch=&as_occt=any&safe=images&tbs=&as_filetype=&as_rights='
     download_html = False
     limit_country = False
 
@@ -44,31 +47,64 @@ class GoogleSearchSpider(scrapy.Spider):
 
     def parse(self, response):
         filename = "test.json"
-        test = response.xpath('//div/@id')
+        test = response.xpath('//div[@id="search"]').extract()
         print('test: ', test)
 
         final_json = {}
-        final_json['search_results'] = {}
-        final_json['related_searches'] = {}
+        final_json['search_results'] = []
+        final_json['related_searches'] = []
+
+        title = ''
+        url = ''
+        snippet = ''
 
         # Search results
-        for div in response.xpath('//div[@id="main"]//div[@class="kCrYT"]'):
-            srch_res_temp = yield {
-                'srch_res_title': div.xpath('.//div[@class="BNeawe vvjwJb AP7Wnd"]/text()').extract_first(),
-                'srch_res_url' : div.xpath('./a/@href').extract_first(),
-                'srch_res_snippet' : div.xpath('.//div[@class="BNeawe s3v9rd AP7Wnd"]/text()').extract_first(),
+        for div in response.xpath('//div[@id="main"]//div[@class="ZINbbc xpd O9g5cc uUPGi"]'):
+            count = 0
+            while count != 2:
+                if count % 2 :
+                    title = div.xpath('.//div[@class="kCrYT"]//div[@class="BNeawe vvjwJb AP7Wnd"]/text()').extract_first()
+                    href = div.xpath('.//div[@class="kCrYT"]/a/@href').extract_first()
+                    if href is not None:
+                        parsed = urlparse.urlparse(href)
+                        url = parse_qs(parsed.query)['q'][0]
+                    count += 1
+                else:
+                    snippet = div.xpath('.//div[@class="kCrYT"]//div[@class="BNeawe s3v9rd AP7Wnd"]/text()').extract_first()
+                    count += 1
+
+            # il = ItemLoader(item=GoogleSearchItem(), selector=div)
+            # il.add_xpath('title', './/div[@class="BNeawe vvjwJb AP7Wnd"]/text()')
+            # il.add_xpath('url' , './a/@href')
+            # il.add_xpath('snippet' , './/div[@class="BNeawe s3v9rd AP7Wnd"]/text()')
+            # test12 = il.load_item()
+            # print('test12', test12)
+            temp = {
+                'title': title,
+                'url' : url,
+                'snippet' : snippet,
             }
-            print('srch_res_temp: ', srch_res_temp)
-            final_json['search_results'].update(srch_res_temp)
+
+            if temp['title'] is not None:
+                #print('srch_res_temp: ', temp)
+                final_json['search_results'].append(temp)
+                #print("final_json['search_results']: ", final_json['search_results'])
 
         # Related searches
         for div in response.xpath('//div[@id="main"]//div[@class="X7NTVe"]'):
-            rel_srch_temp = {
-                'rel_srch_title': div.xpath('.//div[@class="am3QBf"]//div[@class="BNeawe deIvCb AP7Wnd"]/text()').extract_first(),
-                'rel_srch_url' : div.xpath('./a/@href').extract_first(),
-            }            
-            final_json['related_searches'].update(rel_srch_temp)
+            title = div.xpath('.//div[@class="am3QBf"]//div[@class="BNeawe deIvCb AP7Wnd"]/text()').extract_first()
+            temp_url = div.xpath('./a/@href').extract_first()
+            if temp_url is not None:
+                url = 'www.google.com' + temp_url
 
+            temp = {
+                'title': title,
+                'url' : url,
+            } 
+            if temp['title'] is not None:
+                #print('temp: ', temp)
+                final_json['related_searches'].append(temp)
+                #print("final_json['related_searches']: ", final_json['related_searches'])           
         # with open(filename, 'ab') as f:
         #     divs = response.xpath("//div[@id='rso']")            
         #     f.write(divs)

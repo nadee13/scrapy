@@ -25,10 +25,19 @@ class JokeItem(scrapy.Item):
         output_processor= TakeFirst()
     )
 
-class GoogleSearchItem(Item):
-    name = Field()
-    region = Field()
-    url = Field()
+class GoogleSearchItem(scrapy.Item):
+    title = scrapy.Field(
+        input_processor= MapCompose(remove_tags, remove_whitespace),
+        output_processor= TakeFirst()
+    )
+    url = scrapy.Field(
+        input_processor= MapCompose(remove_tags, remove_whitespace),
+        output_processor= TakeFirst()
+    )
+    snippet = scrapy.Field(
+        input_processor= MapCompose(remove_tags, remove_whitespace),
+        output_processor= TakeFirst()
+    )
     html = Field()
     query = Field()
     crawled = Field()
